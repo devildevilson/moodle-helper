@@ -1,9 +1,7 @@
 const format = require("@stdlib/string-format");
 
 const GET_COURSE_LAST_SECTION = 
-`
-SELECT * FROM mdl_course_sections mcs WHERE mcs.course = %d AND mcs.section = 8;
-`;
+`SELECT * FROM mdl_course_sections mcs WHERE mcs.course = %d AND mcs.section = 8;`;
 
 const GET_PREV_QUIZ_FROM_TABLE = 
 `
@@ -114,6 +112,15 @@ function make_valid_sql_string(str) {
   return str.replace("'", "\"");
 }
 
+function make_valid_apostrophe(str) {
+  return str.replaceAll("'", "''");
+}
+
+function get_last_index_from_result(res) {
+  const [ key, value ] = Object.entries(res[0])[0];
+  return value;
+}
+
 function make_unix_timestamp(time_str) {
   return parseInt((new Date(time_str).getTime() / 1000).toFixed(0));
 }
@@ -202,10 +209,42 @@ async function insert_random_questions_instances(pool, quiz_id, questions_arr) {
 }
 
 async function get_course_last_section(pool, course_id) {
-  const query_str = format(GET_COURSE_LAST_SECTION, course_id);
+  const query_str = `SELECT * FROM mdl_course_sections WHERE course = ${course_id} ORDER BY section DESC LIMIT 1;`; //AND section = 8
+  //const query_str = format(GET_COURSE_LAST_SECTION, course_id);
   const [ result, _ ] = await pool.query(query_str);
   //console.log(result);
+  if (result.length === 0) throw `last section ${course_id} res 0 length`;
   return result[0].id;
+}
+
+async function create_quiz(pool, course_id, name, open_time, close_time, attempts_count, created, time, type) {
+  const query_str = 
+  `INSERT INTO mdl_quiz (     course ,    name  ,    timeopen ,    timeclose , preferredbehaviour,         attempts , questiondecimalpoints, shufflequestions, shuffleanswers, questions, timemodified, timelimit, browsersecurity, plt_testtype, reviewattempt, reviewcorrectness, reviewmarks, reviewspecificfeedback, reviewgeneralfeedback, reviewrightanswer, reviewoverallfeedback, grade)
+                 VALUES (${course_id}, '${name}', ${open_time}, ${close_time}, 'deferredfeedback', ${attempts_count},                    -1,                1,              1,        '',   ${created},   ${time},             '-',    '${type}',         69904,              4368,        4368,                   4368,                  4368,              4368,                  4352, 100.0);`;
+
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  await conn.query(query_str);
+  const [ res, _ ] = await conn.query("SELECT LAST_INSERT_ID();");
+  await conn.commit()
+  conn.release();
+
+  return get_last_index_from_result(res);
+}
+
+async function create_course_module(pool, course_id, instance_id, section_id, created, visible) {
+  const query_str = 
+  `INSERT INTO mdl_course_modules (     course , module,      instance ,      section ,     added ,   visible )
+                           VALUES (${course_id},     12, ${instance_id}, ${section_id}, ${created}, ${visible});`;
+
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  await conn.query(query_str);
+  const [ res, _ ] = await conn.query("SELECT LAST_INSERT_ID();");
+  await conn.commit()
+  conn.release();
+
+  return get_last_index_from_result(res);
 }
 
 async function create_test_for_course(pool, course_id, name, open_time, close_time, attempts_count, time, type) {
@@ -213,33 +252,37 @@ async function create_test_for_course(pool, course_id, name, open_time, close_ti
 
   // создаем запись в таблице тестов
   const created = make_unix_timestamp((new Date()).toString());
-  {
-    const query_str = format(INSERT_TEST_TO_TABLE_QUERY, course_id, name, open_time, close_time, attempts_count, created, time, type);
-    await pool.query(query_str);
-  }
+  const quiz_id = await create_quiz(pool, course_id, name, open_time, close_time, attempts_count, created, time, type);
+  // {
+  //   const query_str = format(INSERT_TEST_TO_TABLE_QUERY, course_id, name, open_time, close_time, attempts_count, created, time, type);
+  //   await pool.query(query_str);
+  // }
 
-  // получаем только что вставленный айдишник
-  let quiz_id = 0;
-  {
-    const query_str = format(GET_PREV_QUIZ_FROM_TABLE, course_id, name, open_time, close_time, attempts_count, created, time, type);
-    const [ result, _ ] = await pool.query(query_str);
-    quiz_id = result[0].id;
-  }
+  // // получаем только что вставленный айдишник
+  // let quiz_id = 0;
+  // {
+  //   const query_str = format(GET_PREV_QUIZ_FROM_TABLE, course_id, name, open_time, close_time, attempts_count, created, time, type);
+  //   const [ result, _ ] = await pool.query(query_str);
+  //   quiz_id = result[0].id;
+  // }
 
   const visible = 1;
-  // создаем запись в таблице модулей для курса
-  {
-    const query_str = format(INSERT_TEST_TO_COURSE_MODULES, course_id, quiz_id, section_id, created, visible);
-    await pool.query(query_str);
-  }
+  const module_id = await create_course_module(pool, course_id, quiz_id, section_id, created, visible);
 
-  // получаей айдишник для модуля
-  let module_id = 0;
-  {
-    const query_str = format(GET_PREV_MODULE_FROM_TABLE, course_id, quiz_id, section_id, created, visible);
-    const [ result, _ ] = await pool.query(query_str);
-    module_id = result[0].id;
-  }
+  // const visible = 1;
+  // // создаем запись в таблице модулей для курса
+  // {
+  //   const query_str = format(INSERT_TEST_TO_COURSE_MODULES, course_id, quiz_id, section_id, created, visible);
+  //   await pool.query(query_str);
+  // }
+
+  // // получаей айдишник для модуля
+  // let module_id = 0;
+  // {
+  //   const query_str = format(GET_PREV_MODULE_FROM_TABLE, course_id, quiz_id, section_id, created, visible);
+  //   const [ result, _ ] = await pool.query(query_str);
+  //   module_id = result[0].id;
+  // }
 
   // получаем строку последовательности модулей
   let sequence = "";
@@ -267,10 +310,10 @@ async function create_test_for_course(pool, course_id, name, open_time, close_ti
   // нужно сделать 2 вещи: увеличить число перед первой скобкой
   // и добавить специальную запись в конец этого текста 
   //console.log("modinfo",modinfo);
-  const index = modinfo.indexOf('{');
-  const sub = modinfo.substring(0, index);
+  const index = modinfo ? modinfo.indexOf('{') : 0;
+  const sub = modinfo ? modinfo.substring(0, index) : "";
   const sub_arr = sub.split(":");
-  const new_value = parseInt(sub_arr[1])+1;
+  const new_value = sub_arr.length == 0 ? 1 : parseInt(sub_arr[1])+1;
   const new_prefix = `a:${new_value}:`;
 
   const quiz_id_length = (quiz_id+'').length;
@@ -279,11 +322,12 @@ async function create_test_for_course(pool, course_id, name, open_time, close_ti
   const created_length = (created+'').length;
   const additional_value = `i:${module_id};O:8:"stdClass":10:{s:2:"id";s:${quiz_id_length}:"${quiz_id}";s:2:"cm";s:${module_id_length}:"${module_id}";s:3:"mod";s:4:"quiz";s:7:"section";s:1:"8";s:9:"sectionid";s:${section_id_length}:"${section_id}";s:6:"module";s:2:"12";s:5:"added";s:${created_length}:"${created}";s:7:"visible";s:1:"0";s:10:"visibleold";s:1:"1";s:4:"name";s:${name.length}:"${name}";}`;
 
-  let leftover = modinfo.substring(index, modinfo.length);
-  leftover = leftover.substring(0, leftover.length-1);
+  let leftover = modinfo ? modinfo.substring(index, modinfo.length) : "";
+  leftover = leftover.length == 0 ? "" : leftover.substring(0, leftover.length-1);
   leftover += additional_value;
   leftover += '}';
-  const updated_info = new_prefix+leftover;
+  // поможет ли? нет почему то не помогло, что делать?
+  const updated_info = make_valid_apostrophe(new_prefix+leftover);
   //console.log(updated_info);
 
   // обновляем текст на сервере
@@ -345,6 +389,116 @@ async function create_questions_for_test(pool, teacher_id, course_id, quiz_id, q
   }
 }
 
+async function create_course(pool, fullname, shortname, idnumber, startdate) {
+  const time = make_unix_timestamp(new Date());
+  const query_str = 
+  `INSERT INTO mdl_course (category,     fullname ,     shortname ,     idnumber , summary, summaryformat, modinfo, newsitems,   startdate , numsections, maxbytes, timecreated, timemodified) 
+                   VALUES (       1, '${fullname}', '${shortname}', '${idnumber}',      '',             1,      '',         5, ${startdate},           8, 56623104,     ${time},      ${time});`;
+
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  await conn.query(query_str);
+  const [ res, _ ] = await conn.query("SELECT LAST_INSERT_ID();");
+  await conn.commit()
+  conn.release();
+
+  return get_last_index_from_result(res);
+}
+
+async function get_last_added_course_id(pool, idnumber) {
+  const query_str = `SELECT * FROM mdl_course WHERE idnumber = '${idnumber}' ORDER BY id DESC LIMIT 1;`;
+  const [ result, _ ] = await pool.query(query_str);
+  return result[0].id;
+}
+
+async function create_enrol(pool, course_id) {
+  const time = make_unix_timestamp(new Date());
+  const query_str = //expirythreshold
+  `INSERT INTO mdl_enrol (   enrol, status,    courseid , sortorder, roleid, customint1, customint2, customint3, customint4, timecreated, timemodified) 
+                  VALUES ('manual',      0, ${course_id},         0,      5,       NULL,       NULL,       NULL,       NULL,     ${time},      ${time}),
+                         ( 'guest',      1, ${course_id},         1,      0,       NULL,       NULL,       NULL,       NULL,     ${time},      ${time}),
+                         (  'self',      1, ${course_id},         2,      5,          0,   10368000,          0,          0,     ${time},      ${time});`;
+
+  await pool.query(query_str);
+}
+
+async function create_enrol_and_get(pool, course_id, type) {
+  if (!(type === "manual" || type === "guest" || type === "self")) throw "get_last_added_enrol_id Wrong type";
+  const time = make_unix_timestamp(new Date());
+  const query_str = //expirythreshold
+  `INSERT INTO mdl_enrol (   enrol, status,    courseid , sortorder, roleid, customint1, customint2, customint3, customint4, timecreated, timemodified) 
+                  VALUES ('manual',      0, ${course_id},         0,      5,       NULL,       NULL,       NULL,       NULL,     ${time},      ${time}),
+                         ( 'guest',      1, ${course_id},         1,      0,       NULL,       NULL,       NULL,       NULL,     ${time},      ${time}),
+                         (  'self',      1, ${course_id},         2,      5,          0,   10368000,          0,          0,     ${time},      ${time});`;
+
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  await conn.query(query_str);
+  const [ res, _ ] = await conn.query(`SELECT id FROM mdl_enrol WHERE courseid = ${course_id} AND enrol = '${type}' ORDER BY id DESC LIMIT 1;`);
+  await conn.commit()
+  conn.release();
+
+  return res[0].id;
+}
+
+async function get_last_added_enrol_id(pool, course_id, type) {
+  if (!(type === "manual" || type === "guest" || type === "self")) throw "get_last_added_enrol_id Wrong type";
+  const query_str = `SELECT * FROM mdl_enrol WHERE courseid = ${course_id} AND enrol = '${type}' ORDER BY id DESC LIMIT 1;`;
+  const [ result, _ ] = await pool.query(query_str);
+  return result[0].id;
+}
+
+async function enrol_user(pool, enrol_id, user_id) {
+  const time = make_unix_timestamp(new Date());
+  const query_str = 
+  `INSERT INTO mdl_user_enrolments (   enrolid ,    userid , timestart, timecreated, timemodified) 
+                            VALUES (${enrol_id}, ${user_id},   ${time},     ${time},      ${time});`;
+
+  await pool.query(query_str);
+}
+
+
+async function create_context(pool, course_id) {
+  const query_str = 
+  `INSERT INTO mdl_context (contextlevel,  instanceid , path, depth) 
+                    VALUES (          50, ${course_id},   '',     2);`;
+
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  await conn.query(query_str);
+  const [ res, _ ] = await conn.query("SELECT LAST_INSERT_ID();");
+  const ctx_id = get_last_index_from_result(res);
+  await conn.query(`UPDATE mdl_context SET path = '/1/3/${ctx_id}' WHERE id = ${ctx_id};`);
+  await conn.commit()
+  conn.release();
+
+  return ctx_id;
+}
+
+async function assign_role(pool, user_id, context_id, role_id) {
+  const time = make_unix_timestamp(new Date());
+  const query_str = 
+  `INSERT INTO mdl_role_assignments (   roleid ,    contextid ,    userid , timemodified, modifierid, component)
+                             VALUES (${role_id}, ${context_id}, ${user_id},      ${time}, ${user_id},        '');`;
+  await pool.query(query_str);
+}
+
+async function create_section(pool, course_id, section_index, name) {
+  if (name) {
+    const query_str = 
+    `INSERT INTO mdl_course_sections (     course ,         section ,     name , summary) 
+                              VALUES (${course_id}, ${section_index},   ${name},      '');`;
+
+    await pool.query(query_str);
+  } else {
+    const query_str = 
+    `INSERT INTO mdl_course_sections (     course ,         section , name, summary) 
+                              VALUES (${course_id}, ${section_index},   '',      '');`;
+
+    await pool.query(query_str);
+  }
+}
+
 async function get_user_by_name(pool, first_name, last_name) {
   const GET_STUDENT_ROWS = `SELECT * FROM mdl_user WHERE firstname = '%s' AND lastname = '%s' AND suspended = 0 AND deleted = 0;`;
   const query_str = format(GET_STUDENT_ROWS, first_name, last_name);
@@ -352,23 +506,36 @@ async function get_user_by_name(pool, first_name, last_name) {
   return results;
 }
 
+async function get_teachers(pool) {
+  const access = make_unix_timestamp("2022.09.01 00:00:00");
+  const GET_MDL_TEACHERS = `SELECT * FROM mdl_user WHERE idnumber LIKE 't%';`;
+  const [ result, _ ] = await pool.query(GET_MDL_TEACHERS);
+  let teachers = [];
+  for (const t of result) {
+    if (t.lastaccess < access) continue;
+
+    teachers.push(t);
+  }
+
+  return teachers;
+}
+
 // user_id может быть или студентом или преподом
 async function get_courses(pool, user_id) {
-  const GET_COURSES = `
+  const query_str = `
     SELECT mc.* FROM mdl_course mc 
     JOIN mdl_enrol me ON mc.id = me.courseid
     JOIN mdl_user_enrolments mue ON me.id = mue.enrolid
-    WHERE mue.userid = %d AND mc.visible = 1;
+    WHERE mue.userid = ${user_id} AND mc.visible = 1;
   `;
 
-  const query_str = format(GET_COURSES, user_id);
   const [ results, _ ] = await pool.query(query_str);
   return results;
 }
 
 async function get_raw_quizes(pool, course_id, qtype) {
   // получаем секции, обходим их
-  const GET_COURSE_SECTIONS = 
+  const GET_COURSE_MODULES = 
   `SELECT * FROM mdl_course_modules WHERE instance = %d AND visible = %d AND module = %d;`;
 
   const GET_QUIZES_FROM_TABLE = `SELECT * FROM mdl_quiz WHERE course = %d AND plt_testtype = '%s';`;
@@ -380,7 +547,7 @@ async function get_raw_quizes(pool, course_id, qtype) {
 
   let ret = [];
   for (const q of results) {
-    const module_query = format(GET_COURSE_SECTIONS, q.id, 1, 12);
+    const module_query = format(GET_COURSE_MODULES, q.id, 1, 12);
     const [ module_results, _ ] = await pool.query(module_query);
     if (module_results.length == 0) continue;
 
@@ -398,6 +565,10 @@ async function get_quiz_attempts(pool, quiz_id, user_id) {
 }
 
 async function find_quiz(pool, course_id, qtype) {
+  return find_valid_quiz(pool, course_id, qtype);
+}
+
+async function find_valid_quiz(pool, course_id, qtype) {
   // получаем секции, обходим их
   const GET_COURSE_SECTIONS = 
   `SELECT * FROM mdl_course_modules WHERE instance = %d AND visible = %d AND module = %d;`;
@@ -416,16 +587,16 @@ async function find_quiz(pool, course_id, qtype) {
   for (const q of results) {
     if (q.questions === "") continue;
     
+    const module_query = format(GET_COURSE_SECTIONS, q.id, 1, 12);
+    const [ module_results, _ ] = await pool.query(module_query);
+    if (module_results.length == 0) continue;
+
     const questions_arr = q.questions.split(",");
     //console.log(q.questions);
     // if (questions_arr.length !== required_question_count) {
     //   console.log("Required question count: "+required_question_count+"\n");
     //   console.log(qtype+" amount         : "+questions_arr.length);
     // }
-
-    const module_query = format(GET_COURSE_SECTIONS, q.id, 1, 12);
-    const [ module_results, _ ] = await pool.query(module_query);
-    if (module_results.length == 0) continue;
 
     const question_id = parseInt(questions_arr[0]);
     const q_str = format(GET_CATEGORY_FROM_QUESTION, question_id);
@@ -578,11 +749,24 @@ module.exports = {
   get_course_last_section,
   create_test_for_course,
   create_questions_for_test,
+  create_course,
+  get_last_added_course_id,
+  create_enrol,
+  create_enrol_and_get,
+  get_last_added_enrol_id,
+  enrol_user,
+  create_context,
+  assign_role,
+  create_section,
+  create_quiz,
+  create_course_module,
   get_user_by_name,
+  get_teachers,
   get_courses,
   get_raw_quizes,
   get_quiz_attempts,
   find_quiz,
+  find_valid_quiz,
   find_quiz_by_name,
   check_quiz_and_fix,
   update_quiz_close_time,

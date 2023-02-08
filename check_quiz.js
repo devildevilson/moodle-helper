@@ -4,11 +4,11 @@ const format = require("@stdlib/string-format");
 const common = require("./common");
 
 const connection_config = {
-  host     : process.env.DATABASE_HOST,
-  port     : process.env.DATABASE_PORT,
-  user     : process.env.DATABASE_USER,
-  password : process.env.DATABASE_PASSWORD,
-  database : process.env.DATABASE_NAME,
+  host     : process.env.MDL_DATABASE_HOST,
+  port     : process.env.MDL_DATABASE_PORT,
+  user     : process.env.MDL_DATABASE_USER,
+  password : process.env.MDL_DATABASE_PASSWORD,
+  database : process.env.MDL_DATABASE_NAME,
   connectionLimit: 10,
 };
 
