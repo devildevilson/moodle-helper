@@ -313,7 +313,8 @@ async function create_test_for_course(pool, course_id, name, open_time, close_ti
   const index = modinfo ? modinfo.indexOf('{') : 0;
   const sub = modinfo ? modinfo.substring(0, index) : "";
   const sub_arr = sub.split(":");
-  const new_value = sub_arr.length == 0 ? 1 : parseInt(sub_arr[1])+1;
+  //console.log("sub_arr:", sub_arr);
+  const new_value = sub_arr.length < 2 ? 1 : parseInt(sub_arr[1])+1;
   const new_prefix = `a:${new_value}:`;
 
   const quiz_id_length = (quiz_id+'').length;
@@ -322,8 +323,9 @@ async function create_test_for_course(pool, course_id, name, open_time, close_ti
   const created_length = (created+'').length;
   const additional_value = `i:${module_id};O:8:"stdClass":10:{s:2:"id";s:${quiz_id_length}:"${quiz_id}";s:2:"cm";s:${module_id_length}:"${module_id}";s:3:"mod";s:4:"quiz";s:7:"section";s:1:"8";s:9:"sectionid";s:${section_id_length}:"${section_id}";s:6:"module";s:2:"12";s:5:"added";s:${created_length}:"${created}";s:7:"visible";s:1:"0";s:10:"visibleold";s:1:"1";s:4:"name";s:${name.length}:"${name}";}`;
 
-  let leftover = modinfo ? modinfo.substring(index, modinfo.length) : "";
+  let leftover = modinfo ? modinfo.substring(index+1, modinfo.length) : "";
   leftover = leftover.length == 0 ? "" : leftover.substring(0, leftover.length-1);
+  leftover += '{';
   leftover += additional_value;
   leftover += '}';
   // поможет ли? нет почему то не помогло, что делать?
@@ -499,6 +501,17 @@ async function create_section(pool, course_id, section_index, name) {
   }
 }
 
+async function create_default_blocks(pool, ctx_id) {
+  const query_str = 
+  `INSERT INTO mdl_block_instances (   blockname , parentcontextid, showinsubcontexts, pagetypepattern, defaultweight, configdata, defaultregion)
+                            VALUES (  'dndupload',       ${ctx_id},                 0, 'course-view-*',             1,         '',   'side-post'),
+                                   ( 'news_items',       ${ctx_id},                 0, 'course-view-*',             0,         '',   'side-post'),
+                                   ('course_list',       ${ctx_id},                 0, 'course-view-*',             1,         '',    'side-pre'),
+                                   (      'tutor',       ${ctx_id},                 0, 'course-view-*',             0,         '',    'side-pre');`;
+
+  await pool.query(query_str);
+}
+
 async function get_user_by_name(pool, first_name, last_name) {
   const GET_STUDENT_ROWS = `SELECT * FROM mdl_user WHERE firstname = '%s' AND lastname = '%s' AND suspended = 0 AND deleted = 0;`;
   const query_str = format(GET_STUDENT_ROWS, first_name, last_name);
@@ -533,6 +546,18 @@ async function get_courses(pool, user_id) {
   return results;
 }
 
+async function get_course_context(pool, course_id) {
+  const query_str = `SELECT * FROM mdl_context WHERE contextlevel = 50 AND instanceid = ${course_id};`;
+  const [ results, _ ] = await pool.query(query_str);
+  return results[0];
+}
+
+async function get_context_blocks(pool, ctx_id) {
+  const query_str = `SELECT * FROM mdl_block_instances WHERE parentcontextid = ${ctx_id};`;
+  const [ results, _ ] = await pool.query(query_str);
+  return results;
+}
+
 async function get_raw_quizes(pool, course_id, qtype) {
   // получаем секции, обходим их
   const GET_COURSE_MODULES = 
@@ -563,6 +588,12 @@ async function get_quiz_attempts(pool, quiz_id, user_id) {
   const [ results, _ ] = await pool.query(query_str);
   return results;
 }
+
+async function get_course_sections(pool, course_id) {
+  const query_str = `SELECT * FROM mdl_course_sections WHERE course = ${course_id} AND section < 8;`;
+  const [ results, _ ] = await pool.query(query_str);
+  return results;
+} 
 
 async function find_quiz(pool, course_id, qtype) {
   return find_valid_quiz(pool, course_id, qtype);
@@ -758,13 +789,17 @@ module.exports = {
   create_context,
   assign_role,
   create_section,
+  create_default_blocks,
   create_quiz,
   create_course_module,
   get_user_by_name,
   get_teachers,
   get_courses,
+  get_course_context,
+  get_context_blocks,
   get_raw_quizes,
   get_quiz_attempts,
+  get_course_sections,
   find_quiz,
   find_valid_quiz,
   find_quiz_by_name,

@@ -97,7 +97,11 @@ const current_tests_time = {
       const plt_id = parse_teacher_id(t.idnumber);
       const subjects = await plt_common.get_teacher_subjects(plt_conn, plt_id);
       
-      //console.log(`subjects: `, courses);
+      // console.log(`subjects: `, subjects.length);
+      // for (const sub of subjects) {
+      //   console.log(`${sub.tutorid} ${sub.subjectid} ${sub.studyForm} ${sub.language}`);
+      // }
+      // return;
 
       let course_set = new Set();
       for (const course of courses) {
@@ -106,9 +110,11 @@ const current_tests_time = {
 
       for (const sub of subjects) {
         const idnumber = make_course_id_number(sub.TutorID, sub.SubjectID, sub.studyForm, sub.language);
+        //console.log(`idnumber: ${idnumber}`);
         if (course_set.has(idnumber)) continue;
 
         const study_groups = await plt_common.get_study_groups(plt_conn, sub.TutorID, sub.SubjectID, sub.studyForm);
+        //console.log(`study_groups.length: ${study_groups.length}`);
         if (study_groups.length === 0) continue;
 
         // если этот idnumber нет среди courses, то создадим курс в мудле
@@ -140,6 +146,9 @@ const current_tests_time = {
           await mdl_common.create_section(mdl_pool, course_id, i, undefined);
         }
 
+        await mdl_common.create_default_blocks(mdl_pool, ctx_id);
+
+        course_set.add(idnumber);
         console.log(`Created  ${name} ${shortname} ${course_id}`);
 
         //created_first = true;
