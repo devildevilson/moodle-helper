@@ -25,7 +25,7 @@ const plt_connection_config = {
   password : process.env.PLT_DATABASE_PASSWORD,
   database : process.env.PLT_DATABASE_NAME,
   connectionLimit: 10,
-  connectTimeout: 100000,
+  connectTimeout: 1000000,
 };
 
 function parse_teacher_id(idnumber) {
@@ -75,7 +75,7 @@ function get_subject_code(sub, lang) {
 }
 
 const current_tests_time = {
-  vsk1: { name: "Рубежный контроль 1", open: "2023.03.13 00:00:00", close: "2023.03.17 23:55:00", attempts: 3, time: 40*60 },
+  vsk1: { name: "Рубежный контроль 1", open: "2023.03.13 00:00:00", close: "2023.03.26 23:55:00", attempts: 3, time: 40*60 },
   vsk2: { name: "Рубежный контроль 2", open: "2023.05.02 00:00:00", close: "2023.05.05 23:55:00", attempts: 3, time: 40*60 },
   exam: { name: "Экзамен",             open: "2023.05.08 00:00:00", close: "2023.05.27 23:55:00", attempts: 1, time: 50*60 },
 };
@@ -89,7 +89,7 @@ const current_tests_time = {
 
   const teachers = await mdl_common.get_teachers(mdl_pool);
   for (const t of teachers) {
-    if (t.id !== 3167) continue;
+    if (t.id !== 1381) continue;
     console.log(`teacher: ${t.firstname} ${t.lastname} ${t.idnumber} ${t.id}`);
 
     {
@@ -97,7 +97,7 @@ const current_tests_time = {
       const plt_id = parse_teacher_id(t.idnumber);
       const subjects = await plt_common.get_teacher_subjects(plt_conn, plt_id);
       
-      // console.log(`subjects: `, subjects.length);
+      console.log(`Found ${subjects.length} subjects`);
       // for (const sub of subjects) {
       //   console.log(`${sub.tutorid} ${sub.subjectid} ${sub.studyForm} ${sub.language}`);
       // }

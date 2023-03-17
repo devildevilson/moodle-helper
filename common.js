@@ -117,7 +117,7 @@ function make_valid_apostrophe(str) {
 }
 
 function get_last_index_from_result(res) {
-  const [ key, value ] = Object.entries(res[0])[0];
+  const [ _, value ] = Object.entries(res[0])[0];
   return value;
 }
 
@@ -771,6 +771,29 @@ async function get_questions_from_quiz(pool, quiz_id) {
   return q_arr;
 }
 
+async function find_course_with_idnumber(pool, idnumber) {
+  const query_str = `SELECT * FROM mdl_course WHERE idnumber = '${idnumber}'`;
+  const [ res, _ ] = await pool.query(query_str);
+  return res.length !== 0 ? res[0] : undefined;
+}
+
+async function get_course_tests(pool, course_id)
+//async function get_course_tests(course_id) 
+{
+  const module_id= 12;
+  const query_str = 
+  `SELECT mq.*,mcm.idnumber AS test_idnumber FROM mdl_quiz mq 
+   INNER JOIN mdl_course_modules mcm ON mq.id = mcm.instance 
+   WHERE mcm.course = ${course_id} AND mcm.module = ${module_id} AND mcm.visible = 1;`;
+  const [ res, _ ] = await pool.query(query_str);
+  return res;
+}
+
+async function update_quiz_time(pool, quiz_id, time_open, time_close) {
+  const query_str = `UPDATE mdl_quiz SET timeopen = ${time_open}, timeclose = ${time_close} WHERE id = ${quiz_id};`;
+  await pool.query(query_str);
+}
+
 module.exports = {
   make_unix_timestamp,
   insert_question,
@@ -806,5 +829,9 @@ module.exports = {
   check_quiz_and_fix,
   update_quiz_close_time,
   delete_attempt_from_quiz,
-  get_questions_from_quiz
+  get_questions_from_quiz,
+  find_course_with_idnumber,
+  get_course_tests,
+  update_quiz_time,
+
 };

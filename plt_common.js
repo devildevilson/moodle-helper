@@ -72,6 +72,17 @@ async function get_study_groups(pool, tutor_id, subject_id, study_form) {
   return study_groups;
 }
 
+async function get_study_groups_by_year(pool, year, term) {
+  const query_str = 
+  `SELECT * FROM studygroups sg 
+     JOIN tutorsubject ts ON ts.TutorSubjectID = sg.tutorSubjectID 
+     WHERE sg.year = ${year} AND sg.Term = ${term} AND sg.isMain = 1 AND sg.studentCount != 0 AND ts.studyForm IN (3, 8, 19, 20, 30)
+  ;`; // GROUP BY sg.tutorSubjectID
+
+  const [ res, _ ] = await pool.query(query_str);
+  return res;
+}
+
 async function get_subject(pool, subject_id, lang) {
   const query_str = `SELECT * FROM subjects WHERE SubjectID = ${subject_id};`;
   const [ result, _ ] = await pool.query(query_str);
@@ -80,10 +91,31 @@ async function get_subject(pool, subject_id, lang) {
   return sub;
 }
 
+async function get_tutor(pool, tutor_id) {
+  const query_str = `SELECT * FROM tutors WHERE TutorID = ${tutor_id};`;
+  const [ res, _ ] = await pool.query(query_str);
+  return res.length !== 0 ? res[0] : undefined;
+}
 
+async function get_tutor_subject(pool, tutor_subject_id) {
+  const query_str = `SELECT * FROM tutorsubject WHERE TutorSubjectID = ${tutor_subject_id};`;
+  const [ res, _ ] = await pool.query(query_str);
+  return res.length !== 0 ? res[0] : undefined;
+}
+
+async function get_subject(pool, subject_id) {
+  const query_str = `SELECT * FROM subjects WHERE SubjectID = ${subject_id};`;
+  const [ res, _ ] = await pool.query(query_str);
+  return res.length !== 0 ? res[0] : undefined;
+}
 
 module.exports = {
   get_teacher_subjects,
   get_study_groups,
-  get_subject
+  get_subject,
+  get_study_groups_by_year,
+  get_tutor,
+  get_tutor_subject,
+  get_subject,
+
 };
