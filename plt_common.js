@@ -109,6 +109,17 @@ async function get_subject(pool, subject_id) {
   return res.length !== 0 ? res[0] : undefined;
 }
 
+async function get_study_groups_data_by_student_id(pool, student_id, year, term) {
+  const query_str = `
+    SELECT sg.StudyGroupID,sg.tutorSubjectID,sg.groupname,sg.tutorid,ts.SubjectID,ts.language,ts.studyForm FROM studygroups sg 
+    INNER JOIN studentstudygroup ssg ON sg.StudyGroupID = ssg.studyGroupID 
+    INNER JOIN tutorsubject ts ON ts.TutorSubjectID = sg.tutorSubjectID
+    WHERE sg.isMain = 1 AND sg.studentCount > 0 AND ssg.StudentID = ${student_id} AND sg.Term = ${term} AND sg.year = ${year};
+  `;
+  const [ res, _ ] = await pool.query(query_str);
+  return res;
+}
+
 module.exports = {
   get_teacher_subjects,
   get_study_groups,
@@ -117,5 +128,6 @@ module.exports = {
   get_tutor,
   get_tutor_subject,
   get_subject,
-
+  get_study_groups_data_by_student_id,
+  
 };

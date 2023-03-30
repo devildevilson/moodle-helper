@@ -89,7 +89,7 @@ const current_tests_time = {
 
   const teachers = await mdl_common.get_teachers(mdl_pool);
   for (const t of teachers) {
-    if (t.id !== 1381) continue;
+    if (t.id !== 2499) continue;
     console.log(`teacher: ${t.firstname} ${t.lastname} ${t.idnumber} ${t.id}`);
 
     {

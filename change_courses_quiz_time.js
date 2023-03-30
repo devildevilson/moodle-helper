@@ -49,6 +49,11 @@ function make_current_day_str() {
   return `${current_date.getFullYear()}.${month_str}.${day_str}`;
 }
 
+function print_time(str, date) {
+  const number = mdl_common.make_unix_timestamp(new Date(date));
+  console.log(`${str} ${number}`);
+}
+
 const current_tests_time = {
   vsk1: { name: "Рубежный контроль 1", open: "2023.03.13 00:00:00", close: "2023.03.26 23:55:00", attempts: 3, time: 40*60 },
   vsk2: { name: "Рубежный контроль 2", open: "2023.05.02 00:00:00", close: "2023.05.05 23:55:00", attempts: 3, time: 40*60 },
@@ -69,7 +74,7 @@ let xlsx_data = [
 ];
 
 let xlsx_data2 = [
-  [ "Преподаватель", "Дисциплина", "Код дисциплины", "Форма обучения", "Язык", "id академического потока", "id преподавателя в platonus" ],
+  [ "Преподаватель", "Дисциплина", "Код дисциплины", "Форма обучения", "Язык", "id академического потока", "id преподавателя в platonus", "Тесты" ],
 
 ];
 
@@ -78,6 +83,8 @@ let xlsx_data3 = [
 
 ];
 (async () => {
+  print_time("open", current_tests_time.vsk1.open);
+  
   const mdl_pool = mysql.createPool(mdl_connection_config);
   const plt_conn = await mysql.createConnection(plt_connection_config);
 
@@ -108,7 +115,7 @@ let xlsx_data3 = [
     }
 
     let test_with_bad_question_count = "";
-    let local_test_counter = 0;
+    let local_test_counter = new Set(["vsk1", "vsk2", "exam"]);
     const tests = await mdl_common.get_course_tests(mdl_pool, course.id);
     for (const test of tests) {
       if (typeof test.plt_testtype !== "string") continue;
@@ -124,17 +131,20 @@ let xlsx_data3 = [
 
       //await mdl_common.update_quiz_time(mdl_pool, test.id, open_time, close_time);
       //console.log(`Update time in course ${course.id} ${course.fullname} for test ${test.id} ${test.plt_testtype}`);
-      local_test_counter += 1;
+      //local_test_counter += 1;
+      local_test_counter.delete(test.plt_testtype);
     }
 
-    if (local_test_counter === 0) {
+    const not_created_tests = Array.from(local_test_counter);
+    if (not_created_tests.length !== 0) {
       console.log(`Tests are not created for course '${course_idnumber}'`);
       // надо бы наверное эксель составить с теми которых нет
       const study_form = id_to_study_form[tutor_subject.studyForm] ? id_to_study_form[tutor_subject.studyForm] : tutor_subject.studyForm+""
       const lang = tutor_subject.language === 1 ? "Рус" : (tutor_subject.language === 2 ? "Каз" : "Англ");
       const tutor_name = tutor ? `${tutor.lastname} ${tutor.firstname} ${tutor.patronymic}` : "Не задан";
+      const tests_str = not_created_tests.join(",");
       xlsx_data2.push([
-        tutor_name, subject.SubjectNameRU, subject.SubjectCodeRu, study_form, lang, group.StudyGroupID+"", group.tutorid+""
+        tutor_name, subject.SubjectNameRU, subject.SubjectCodeRu, study_form, lang, group.StudyGroupID+"", group.tutorid+"", tests_str
       ]);
     }
 
@@ -150,8 +160,8 @@ let xlsx_data3 = [
       ]);
     }
 
-    course_counter += (local_test_counter > 0);
-    test_counter += local_test_counter;
+    course_counter += (not_created_tests.length !== 3);
+    test_counter += (3 - not_created_tests.length);
   }
 
   console.log(`Updated ${test_counter} tests in ${course_counter} courses`);
@@ -184,7 +194,7 @@ let xlsx_data3 = [
     console.log(`Writing ${xlsx_data3.length} rows`);
     fs.writeFile(`tests_with_zero_questions_${date_str}.xlsx`, buffer, err => {
       if (err) { console.error(err); return; }
-      console.log(`Success computing`);
+      console.log(`Success computing`); 
     });
   }
 })();

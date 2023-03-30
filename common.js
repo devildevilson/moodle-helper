@@ -794,6 +794,24 @@ async function update_quiz_time(pool, quiz_id, time_open, time_close) {
   await pool.query(query_str);
 }
 
+async function get_user_idnumber(pool, user_id) {
+  const query_str = `SELECT idnumber FROM mdl_user WHERE id = ${user_id};`;
+  const [ res, _ ] = await pool.query(query_str);
+  return res.length !== 0 ? res[0].idnumber : undefined;
+}
+
+async function get_course_by_plt_data(pool, tutor_id, subject_id, study_form, lang_num) {
+  const course_idnumber = `${tutor_id}-${subject_id}-${study_form}-${lang_num}`;
+  const query_str = `
+    SELECT * FROM mdl_course WHERE idnumber = '${course_idnumber}';
+  `;
+
+  const [ res, _ ] = await pool.query(query_str);
+  //console.log(course_idnumber);
+  //console.log(res);
+  return res.length !== 0 ? res[0] : undefined;
+}
+
 module.exports = {
   make_unix_timestamp,
   insert_question,
@@ -833,5 +851,7 @@ module.exports = {
   find_course_with_idnumber,
   get_course_tests,
   update_quiz_time,
+  get_user_idnumber,
+  get_course_by_plt_data,
 
 };

@@ -34,9 +34,9 @@ for (const rows of students_data[0].data) {
 
 //console.log(student_subj_data);
 const changing_data = {
-  //vsk1: "2023.01.06 23:55:00",
-  //vsk2: "2023.01.10 23:55:00",
-  exam: "2023.01.22 23:55:00",
+  vsk1: "2023.03.28 23:55:00",
+  //vsk2: "2023.05.10 23:55:00",
+  //exam: "2023.05.22 23:55:00",
 };
 
 (async () => {
