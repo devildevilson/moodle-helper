@@ -210,11 +210,8 @@ async function insert_random_questions_instances(pool, quiz_id, questions_arr) {
 
 async function get_course_last_section(pool, course_id) {
   const query_str = `SELECT * FROM mdl_course_sections WHERE course = ${course_id} ORDER BY section DESC LIMIT 1;`; //AND section = 8
-  //const query_str = format(GET_COURSE_LAST_SECTION, course_id);
   const [ result, _ ] = await pool.query(query_str);
-  //console.log(result);
-  if (result.length === 0) throw `last section ${course_id} res 0 length`;
-  return result[0].id;
+  return result.length !== 0 ? result[0].id : undefined;
 }
 
 async function create_quiz(pool, course_id, name, open_time, close_time, attempts_count, created, time, type) {
@@ -249,6 +246,7 @@ async function create_course_module(pool, course_id, instance_id, section_id, cr
 
 async function create_test_for_course(pool, course_id, name, open_time, close_time, attempts_count, time, type) {
   const section_id = await get_course_last_section(pool, course_id);
+  if (!section_id) return undefined;
 
   // создаем запись в таблице тестов
   const created = make_unix_timestamp((new Date()).toString());
@@ -533,6 +531,12 @@ async function get_teachers(pool) {
   return teachers;
 }
 
+async function get_teacher_by_plt_id(pool, plt_id) {
+  const GET_MDL_TEACHERS = `SELECT * FROM mdl_user WHERE idnumber = 't${plt_id}';`;
+  const [ res, _ ] = await pool.query(GET_MDL_TEACHERS);
+  return res.length !== 0 ? res[0] : undefined;
+}
+
 // user_id может быть или студентом или преподом
 async function get_courses(pool, user_id) {
   const query_str = `
@@ -772,7 +776,7 @@ async function get_questions_from_quiz(pool, quiz_id) {
 }
 
 async function find_course_with_idnumber(pool, idnumber) {
-  const query_str = `SELECT * FROM mdl_course WHERE idnumber = '${idnumber}'`;
+  const query_str = `SELECT * FROM mdl_course WHERE visible = 1 AND idnumber = '${idnumber}'`;
   const [ res, _ ] = await pool.query(query_str);
   return res.length !== 0 ? res[0] : undefined;
 }
@@ -792,6 +796,8 @@ async function get_course_tests(pool, course_id)
 async function update_quiz_time(pool, quiz_id, time_open, time_close) {
   const query_str = `UPDATE mdl_quiz SET timeopen = ${time_open}, timeclose = ${time_close} WHERE id = ${quiz_id};`;
   await pool.query(query_str);
+
+  console.log(`SQL: UPDATE mdl_quiz: SET timeopen = ${time_open}, timeclose = ${time_close} WHERE id = ${quiz_id}`);
 }
 
 async function get_user_idnumber(pool, user_id) {
@@ -835,6 +841,7 @@ module.exports = {
   create_course_module,
   get_user_by_name,
   get_teachers,
+  get_teacher_by_plt_id,
   get_courses,
   get_course_context,
   get_context_blocks,

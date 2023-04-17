@@ -120,6 +120,16 @@ async function get_study_groups_data_by_student_id(pool, student_id, year, term)
   return res;
 }
 
+async function get_students_by_group_id(pool, id) {
+  const query_str = `
+    SELECT s.StudentID,s.Login,s.Password,s.firstname,s.lastname,s.patronymic,s.mail FROM students s 
+    JOIN studentstudygroup ssg ON ssg.studyGroupID = ${id} 
+    WHERE s.StudentID = ssg.StudentID;
+  `;
+  const [ res, _ ] = await pool.query(query_str);
+  return res;
+}
+
 module.exports = {
   get_teacher_subjects,
   get_study_groups,
@@ -129,5 +139,6 @@ module.exports = {
   get_tutor_subject,
   get_subject,
   get_study_groups_data_by_student_id,
+  get_students_by_group_id,
   
 };

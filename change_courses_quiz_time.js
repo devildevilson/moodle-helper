@@ -83,7 +83,7 @@ let xlsx_data3 = [
 
 ];
 (async () => {
-  print_time("open", current_tests_time.vsk1.open);
+  //print_time("open", current_tests_time.vsk1.open);
   
   const mdl_pool = mysql.createPool(mdl_connection_config);
   const plt_conn = await mysql.createConnection(plt_connection_config);

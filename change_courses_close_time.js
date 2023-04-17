@@ -32,12 +32,12 @@ function get_year_term() {
 
 // возможно было бы неплохо эти данные получить из аргументов
 const changing_data = {
-  vsk1: "2023.03.30 23:55:00",
+  vsk1: "2023.04.11 23:55:00",
   //vsk2: "2023.01.10 23:55:00",
   //exam: "2023.01.11 23:55:00",
 };
 
-const user_id = 3597;
+const user_id = 3668;
 
 (async () => {
   const pool = await mysql.createPool(connection_config);
@@ -60,12 +60,12 @@ const user_id = 3597;
       const quizes = await common.get_raw_quizes(pool, course.id, qtype); // получаем список тестов по типу
       const new_time = common.make_unix_timestamp(new_date);
       if (quizes.length == 0) {
-        console.log(`Could not find tests in course ${course.fullname}`);
+        console.log(`Could not find tests in course ${course.id} '${course.fullname}'`);
         continue;
       }
 
       for (const quiz of quizes) {
-        console.log(`Test '${quiz.name}' prolongation for course '${course.fullname}' to time ${new_date}`);
+        console.log(`Test '${quiz.name}' prolongation for course ${course.id} '${course.fullname}' to time ${new_date}`);
         await common.update_quiz_close_time(pool, quiz.id, new_time); // обновляем время окончания теста по unix timestamp
       }
     }
