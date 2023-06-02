@@ -69,7 +69,7 @@ function make_current_day_str() {
 // };
 
 let xlsx_data = [
-  [ "id курса", "id теста", "Дисциплина", "Курс", "Студент", "Время начала", "Время конца", "Поменять?" ],
+  [ "ФИО", "Дисциплина", "Форма обучения" ],
 
 ];
 
@@ -89,11 +89,35 @@ function to_string(date) {
   return `${year}-${month}-${day} ${hour}:${min}:${sec}`;
 }
 
-const test_type = process.argv[2];
-if (test_type !== "vsk1" && test_type !== "vsk2" && test_type !== "exam") {
-  console.log(`Could not parse test type ${test_type}`);
-  return;
-}
+const study_forms = {
+   1:  "очное ( ср.школы)",
+   3:  "ДОТ на базе высшего",
+   4:  "сокращенный ДОТ (очная) на базе колледжа",
+   5:  "Очное на базе Колледжа",
+   6:  "заочная на базе высшего образования",
+   7:  "магистратура",
+   8:  "ДОТ (очное) 3 г",
+  12:  "Магистратута 1 год",
+  13:  "Вечерняя 2года",
+  14:  "Заочная на базе колледжа (2,5)",
+  15:  "научно-педагогическое направление",
+  17:  "Профильное направление",
+  18:  "очная 5 лет",
+  19:  "ДОТ 4 г.",
+  20:  "ДОТ (заочное) 3г",
+  21:  "Докторантура",
+  23:  "Профильное направление 1,5 г.",
+  24:  "Очное на базе Высшего",
+  25:  "научно-педагогическое ДОТ",
+  26:  "Очное 4 года на базе Колледжа",
+  27:  "магистр делового администрирования",
+  28:  "доктор делового администрирования",
+  29:  "Очное на базе Колледжа (2 года обуч)",
+  30:  "ДОТ (очное) 2 г на базе колледжа",
+  31:  "очное ( ср.школы) 3г",
+};
+
+let teachers_data = {};
 
 (async () => {
   const mdl_pool = mysql.createPool(mdl_connection_config);
@@ -105,6 +129,7 @@ if (test_type !== "vsk1" && test_type !== "vsk2" && test_type !== "exam") {
   console.log(`Found ${study_groups.length} study groups`);
   for (const group of study_groups) {
     if (group.tutorid === 0) continue;
+
     const course_idnumber = `${group.tutorid}-${group.SubjectID}-${group.studyForm}-${group.language}`;
     const course = await mdl_common.find_course_with_idnumber(mdl_pool, course_idnumber);
     if (!course) {
@@ -112,38 +137,39 @@ if (test_type !== "vsk1" && test_type !== "vsk2" && test_type !== "exam") {
       continue;
     }
 
-    const students = await plt_common.get_students_by_group_id(plt_conn, group.StudyGroupID);
+    const teacher = await plt_common.get_tutor(plt_conn, group.tutorid);
 
-    let found_test = undefined;
-    const tests = await mdl_common.get_course_tests(mdl_pool, course.id);
-    for (const test of tests) {
-      if (typeof test.plt_testtype !== "string") continue;
-      if (test.plt_testtype !== test_type) continue;
-      found_test = test;
-      break;
-    }
+    if (!teachers_data[group.tutorid]) teachers_data[group.tutorid] = { name: `${teacher.lastname} ${teacher.firstname} ${teacher.patronymic}`};
+    if (!teachers_data[group.tutorid][group.SubjectID]) teachers_data[group.tutorid][group.SubjectID] = { name: course.fullname, arr: [] };
+    teachers_data[group.tutorid][group.SubjectID].arr.push(study_forms[group.studyForm]);
 
-    for (const student of students) {
-      const name = `${student.lastname} ${student.firstname} ${student.patronymic}`;
-      const test_id = found_test ? found_test.id+"" : "Не найден";
-      const start_time = found_test ? "t"+to_string(new Date(found_test.timeopen * 1000)) : "";
-      const end_time = found_test ? "t"+to_string(new Date(found_test.timeclose * 1000)) : "";
-
-      xlsx_data.push([
-        course.id+"", test_id, course.fullname, student.CourseNumber, name, start_time, end_time, ""
-      ]);
-    }
+    
   }
 
   await mdl_pool.end();
   await plt_conn.end();
+
+  for (const [ _, t ] of Object.entries(teachers_data)) {
+    for (const [ key, subj ] of Object.entries(t)) {
+      if (key === "name") continue;
+
+      for (const form of subj.arr) {
+        xlsx_data.push([
+          t.name, subj.name, form
+        ]);
+      }
+    }
+  }
+
+  const unique_teachers_count = Object.entries(teachers_data).length;
+  xlsx_data.push(["Количество преподавателей ДОТ: ", unique_teachers_count, ""]);
 
   const date_str = make_current_day_str();
 
   {
     const buffer = xlsx.build([{name: 'Лист1', data: xlsx_data}]);
     console.log(`Writing ${xlsx_data.length} rows`);
-    fs.writeFile(`prolongation_${test_type}_${date_str}.xlsx`, buffer, err => {
+    fs.writeFile(`teachers_${date_str}.xlsx`, buffer, err => {
       if (err) { console.error(err); return; }
       console.log(`Success computing`);
     });

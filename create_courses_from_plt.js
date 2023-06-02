@@ -5,7 +5,7 @@ const mdl_common = require("./common");
 const plt_common = require("./plt_common");
 
 // создадим курсы в мудл из платонуса
-// нужно просмотреть всех преподов в мудле, 
+// нужно просмотреть всех преподов в мудле,
 // взять оттуда информацию о преподе, просмотреть курсы в платонусе
 // если в мудле нет курса, создать его и + добавить 3 теста с верными датами
 
@@ -75,9 +75,9 @@ function get_subject_code(sub, lang) {
 }
 
 const current_tests_time = {
-  vsk1: { name: "Рубежный контроль 1", open: "2023.04.06 00:00:00", close: "2023.04.07 23:55:00", attempts: 3, time: 40*60 },
-  vsk2: { name: "Рубежный контроль 2", open: "2023.05.02 00:00:00", close: "2023.05.05 23:55:00", attempts: 3, time: 40*60 },
-  exam: { name: "Экзамен",             open: "2023.05.08 00:00:00", close: "2023.05.27 23:55:00", attempts: 1, time: 50*60 },
+  vsk1: { name: "Рубежный контроль 1", open: "2023.05.06 00:00:00", close: "2023.05.09 23:55:00", attempts: 3, time: 40*60 },
+  vsk2: { name: "Рубежный контроль 2", open: "2023.05.06 00:00:00", close: "2023.05.09 23:55:00", attempts: 3, time: 40*60 },
+  exam: { name: "Экзамен",             open: "2023.05.10 00:00:00", close: "2023.05.27 23:55:00", attempts: 1, time: 50*60 },
 };
 
 function get_year_term() {
@@ -103,7 +103,7 @@ function get_year_term() {
   //     const courses = await mdl_common.get_courses(mdl_pool, t.id);
   //     const plt_id = parse_teacher_id(t.idnumber);
   //     const subjects = await plt_common.get_teacher_subjects(plt_conn, plt_id);
-      
+
   //     console.log(`Found ${subjects.length} subjects`);
   //     // for (const sub of subjects) {
   //     //   console.log(`${sub.tutorid} ${sub.subjectid} ${sub.studyForm} ${sub.language}`);
@@ -144,7 +144,7 @@ function get_year_term() {
   //       const ctx_id = await mdl_common.create_context(mdl_pool, course_id);
   //       await mdl_common.assign_role(mdl_pool, t.id, ctx_id, 3); // 3 - учитель
 
-  //       // курс создан, по идее теперь нужно взять текущий курс и создать дефолтные модули 
+  //       // курс создан, по идее теперь нужно взять текущий курс и создать дефолтные модули
   //       // (только форум? да и нужен ли он?)
   //       // до этого нужно создать секциии наверное
 
@@ -173,7 +173,7 @@ function get_year_term() {
   //     for (const course of courses) {
   //       // надо как то пройтись по курсам этого семестра, как? вообще скорее всего по времени начала
   //       // или может быть из платонуса брать данные?
-  //       //if (course.startdate < start_date || course.startdate >= end_date) continue; 
+  //       //if (course.startdate < start_date || course.startdate >= end_date) continue;
   //       const numbers = course.idnumber.split('-');
   //       //if (course.id !== 7411) continue;
 
@@ -207,7 +207,7 @@ function get_year_term() {
   //         const quiz_id = await mdl_common.create_test_for_course(mdl_pool, course.id, quiz_data.name, open, close, quiz_data.attempts, quiz_data.time, key);
   //         console.log(`Created quiz ${key}`, quiz_id);
   //       }
-        
+
   //       // что теперь?
   //       // создали дополнительные курсы и создали тесты к ним
   //     }
@@ -225,7 +225,7 @@ function get_year_term() {
     const course_idnumber = `${group.tutorid}-${group.SubjectID}-${group.studyForm}-${group.language}`;
     const teacher = await mdl_common.get_teacher_by_plt_id(mdl_pool, group.tutorid);
     if (!teacher) continue;
-    if (teacher.id !== 1525) continue;
+    if (teacher.id !== 1011) continue;
 
     console.log(`teacher: ${teacher.firstname} ${teacher.lastname} ${teacher.idnumber} ${teacher.id}`);
 
@@ -262,7 +262,7 @@ function get_year_term() {
 
     if (!cur_course_id) continue;
 
-    let tests_set = new Set([ "vsk1", "vsk2", "exam" ]); 
+    let tests_set = new Set([ "vsk1", "vsk2", "exam" ]);
     const tests = await mdl_common.get_course_tests(mdl_pool, cur_course_id);
     for (const test of tests) {
       if (typeof test.plt_testtype !== "string") continue;

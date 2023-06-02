@@ -586,6 +586,17 @@ async function get_raw_quizes(pool, course_id, qtype) {
   return ret;
 }
 
+// async function get_course_tests(pool, course_id) {
+//   const query_str = `
+//     SELECT * FROM mdl_quiz mq 
+//     JOIN mdl_course_modules mcm ON mcm.visible = 1 AND mcm.module = 12 AND mcm.instance = mq.id 
+//     WHERE mq.course = ${course_id};
+//   `;
+
+//   const [ res, _ ] = await pool.query(query_str);
+//   return res;
+// }
+
 async function get_quiz_attempts(pool, quiz_id, user_id) {
   const GET_QUIZ_ATTEMPTS = `SELECT * FROM mdl_quiz_attempts WHERE quiz = %d AND userid = %d;`;
   const query_str = format(GET_QUIZ_ATTEMPTS, quiz_id, user_id);
@@ -784,11 +795,11 @@ async function find_course_with_idnumber(pool, idnumber) {
 async function get_course_tests(pool, course_id)
 //async function get_course_tests(course_id) 
 {
-  const module_id= 12;
+  //const module_id= 12;
   const query_str = 
-  `SELECT mq.*,mcm.idnumber AS test_idnumber FROM mdl_quiz mq 
+  `SELECT mq.*,mcm.id AS module_id FROM mdl_quiz mq 
    INNER JOIN mdl_course_modules mcm ON mq.id = mcm.instance 
-   WHERE mcm.course = ${course_id} AND mcm.module = ${module_id} AND mcm.visible = 1;`;
+   WHERE mcm.course = ${course_id} AND mcm.module = 12 AND mcm.visible = 1;`;
   const [ res, _ ] = await pool.query(query_str);
   return res;
 }
@@ -816,6 +827,151 @@ async function get_course_by_plt_data(pool, tutor_id, subject_id, study_form, la
   //console.log(course_idnumber);
   //console.log(res);
   return res.length !== 0 ? res[0] : undefined;
+}
+
+async function create_question_category(pool, module_id, quiz_id, course_ctx, name, desc) {
+  const query_ctx = `SELECT * FROM mdl_context WHERE contextlevel = 70 AND instanceid = ${module_id};`;
+  const insert_ctx = `INSERT INTO mdl_context (contextlevel, instanceid, depth) VALUES (70, ${module_id}, 4);`;
+
+  let context_id = undefined;
+  {
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const [ res, _ ] = await conn.query(query_ctx);
+    if (res.length !== 0) {
+      context_id = res[0].id;
+    } else {
+      await conn.query(insert_ctx);
+      const [ [ { ctx_id } ], _ ] = await conn.query("SELECT LAST_INSERT_ID() AS ctx_id;");
+      const update_ctx = `UPDATE mdl_context SET path = '${course_ctx.path}/${context_id}' WHERE id = ${context_id};`;
+      await conn.query(update_ctx);
+      context_id = ctx_id;
+    }
+    await conn.commit();
+    conn.release();
+  }
+
+  const insert_cat = `
+    INSERT INTO mdl_question_categories (   name  ,    contextid ,    info  , infoformat, parent, sortorder)
+                                 VALUES ('${name}', ${context_id}, '${desc}',          0,      0,       999);
+  `;
+
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  await conn.query(insert_cat);
+  const [ [ { cat_id } ], _ ] = await conn.query("SELECT LAST_INSERT_ID() AS cat_id;");
+  await conn.commit();
+  conn.release();
+
+  return cat_id;
+}
+
+async function get_category_questions_id_from_test(pool, question_string) {
+  //const query_str = `SELECT id FROM mdl_question WHERE category IN (SELECT category FROM mdl_question WHERE id IN (${question_string}) GROUP BY category);`;
+  const query_str = `SELECT category FROM mdl_question WHERE id IN (${question_string});`;
+  const [ res, _ ] = await pool.query(query_str);
+  let set = new Set();
+  for (const { category } of res) {
+    set.add(category);
+  }
+  const categories = Array.from(set).join(",");
+  const query2_str = `SELECT id FROM mdl_question WHERE category IN (${categories}) AND qtype = 'multichoice';`;
+  const [ res2, _2 ] = await pool.query(query2_str);
+  return res2;
+}
+
+function make_ans_str(ans_start, ans_count) {
+  let str = "";
+  for (let i = ans_start; i < ans_start+ans_count-1; ++i) {
+    str = str + i + ",";
+  }
+  str = str + (ans_start+ans_count-1);
+  return str;
+}
+
+async function copy_questions_to_category(pool, question_string, cat_id) {
+  const q_id_arr = await get_category_questions_id_from_test(pool, question_string);
+  //console.log(`q_id_arr length ${q_id_arr.length}`);
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  // тут вопросы из категории нужно брать
+  for (const { id } of q_id_arr) {
+    const insert_question_str = `
+      INSERT INTO mdl_question (category, name, questiontext, questiontextformat, generalfeedbackformat, qtype, timecreated, timemodified, createdby, modifiedby, generalfeedback)
+      SELECT ${cat_id}, name, questiontext, questiontextformat, generalfeedbackformat, qtype, timecreated, timemodified, createdby, modifiedby, ''
+      FROM mdl_question
+      WHERE id = ${id};
+    `;
+
+    await conn.query(insert_question_str);
+    const [ [ { new_q_id } ], _1 ] = await conn.query("SELECT LAST_INSERT_ID() AS new_q_id;");
+    const insert_ans_str = `
+      INSERT INTO mdl_question_answers (answer, answerformat, fraction, feedbackformat, question, feedback)
+      SELECT answer, answerformat, fraction, feedbackformat, ${new_q_id}, ''
+      FROM mdl_question_answers
+      WHERE question = ${id};
+    `;
+    await conn.query(insert_ans_str);
+    const [ [ { ans_start } ], _2 ] = await conn.query("SELECT LAST_INSERT_ID() AS ans_start;");
+    const [ [ { ans_count } ], _3 ] = await conn.query(`SELECT COUNT(*) AS ans_count FROM mdl_question_answers WHERE question = ${id};`);
+    const ans_str = make_ans_str(ans_start, ans_count);
+    //console.log(ans_start, ans_count);
+
+    const insert_mult = `
+      INSERT INTO mdl_question_multichoice (  question ,    answers  , single, correctfeedbackformat, partiallycorrectfeedbackformat, incorrectfeedbackformat)
+                                    VALUES (${new_q_id}, '${ans_str}',      1,                     1,                              1,                       1);`;
+
+    await conn.query(insert_mult);
+  }
+  await conn.commit();
+  conn.release();
+}
+
+async function create_random_questions(pool, category_id, count, user_id) {
+  const current_time = make_unix_timestamp(new Date());
+  let q_id_arr = [];
+  const conn = await pool.getConnection();
+  await conn.beginTransaction();
+  for (let i = 0; i < count; ++i) {
+    // надоб добавить стамп и версию do.esil.edu.kz+230502063638+gkbiWW
+    const query_str = `
+      INSERT INTO mdl_question (     category ,                     name , questiontext, generalfeedbackformat,   qtype , penalty,    timecreated ,   timemodified , createdby , modifiedby, generalfeedback)
+                        VALUES (${category_id}, 'rand from exam category',          '1',                    '', 'random',       0, ${current_time}, ${current_time}, ${user_id}, ${user_id}, '');
+    `;
+
+    await conn.query(query_str);
+    const [ [ { new_q_id } ], _ ] = await conn.query("SELECT LAST_INSERT_ID() AS new_q_id;");
+    const update_str = `UPDATE mdl_question SET parent = ${new_q_id} WHERE id = ${new_q_id};`;
+    await conn.query(update_str);
+    q_id_arr.push(new_q_id);
+  }
+  await conn.commit();
+  conn.release();
+
+  return q_id_arr;
+}
+
+async function set_test_questions(pool, test_id, questions_arr) {
+  for (const q of questions_arr) {
+    const insert_str = `INSERT INTO mdl_quiz_question_instances (quiz, question, grade) VALUES (${test_id}, ${q}, 1);`;
+    await pool.query(insert_str);
+  }
+
+  const questions_arr_str = questions_arr.join(",");
+  const query_str = `UPDATE mdl_quiz SET questions = '${questions_arr_str}', sumgrades = ${questions_arr.length} WHERE id = ${test_id};`;
+  const [ res, _ ] = await pool.query(query_str);
+  return res;
+}
+
+async function get_student_by_name(pool, firstname, lastname) {
+  const query_str = `SELECT * FROM mdl_user WHERE lastname = '${lastname}' AND firstname = '${firstname}';`;
+  const [ res, _ ] = await pool.query(query_str);
+  return res;
+}
+
+async function suspend_user(pool, id) {
+  const query_str = `UPDATE mdl_user SET suspended = 1 WHERE id = ${id};`;
+  await pool.query(query_str);
 }
 
 module.exports = {
@@ -860,5 +1016,11 @@ module.exports = {
   update_quiz_time,
   get_user_idnumber,
   get_course_by_plt_data,
+  create_question_category,
+  copy_questions_to_category,
+  create_random_questions,
+  set_test_questions,
+  get_student_by_name,
+  suspend_user,
 
 };

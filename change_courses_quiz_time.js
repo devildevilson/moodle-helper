@@ -56,7 +56,7 @@ function print_time(str, date) {
 
 const current_tests_time = {
   vsk1: { name: "Рубежный контроль 1", open: "2023.03.13 00:00:00", close: "2023.03.26 23:55:00", attempts: 3, time: 40*60 },
-  vsk2: { name: "Рубежный контроль 2", open: "2023.05.02 00:00:00", close: "2023.05.05 23:55:00", attempts: 3, time: 40*60 },
+  vsk2: { name: "Рубежный контроль 2", open: "2023.05.02 00:00:00", close: "2023.05.07 23:55:00", attempts: 3, time: 40*60 },
   exam: { name: "Экзамен",             open: "2023.05.08 00:00:00", close: "2023.05.27 23:55:00", attempts: 1, time: 50*60 },
 };
 
@@ -79,9 +79,10 @@ let xlsx_data2 = [
 ];
 
 let xlsx_data3 = [
-  [ "Преподаватель", "Дисциплина", "Код дисциплины", "Форма обучения", "Язык", "id академического потока", "id преподавателя в platonus", "Тесты" ],
+  [ "Преподаватель", "Дисциплина", "Код дисциплины", "Форма обучения", "Язык", "id академического потока", "id преподавателя в platonus", "id преподавателя в moodle", "Тесты" ],
 
 ];
+
 (async () => {
   //print_time("open", current_tests_time.vsk1.open);
   
@@ -149,14 +150,16 @@ let xlsx_data3 = [
     }
 
     if (test_with_bad_question_count !== "") {
+      const mdl_teacher = await mdl_common.get_teacher_by_plt_id(mdl_pool, group.tutorid);
       test_with_bad_question_count = test_with_bad_question_count.substring(0, test_with_bad_question_count.length-1);
       console.log(`Found tests with zero questions in course '${course_idnumber}'`);
       // надо бы наверное эксель составить с теми которых нет
       const study_form = id_to_study_form[tutor_subject.studyForm] ? id_to_study_form[tutor_subject.studyForm] : tutor_subject.studyForm+""
       const lang = tutor_subject.language === 1 ? "Рус" : (tutor_subject.language === 2 ? "Каз" : "Англ");
       const tutor_name = tutor ? `${tutor.lastname} ${tutor.firstname} ${tutor.patronymic}` : "Не задан";
+      //console.log(mdl_teacher);
       xlsx_data3.push([
-        tutor_name, subject.SubjectNameRU, subject.SubjectCodeRu, study_form, lang, group.StudyGroupID+"", group.tutorid+"", test_with_bad_question_count
+        tutor_name, subject.SubjectNameRU, subject.SubjectCodeRu, study_form, lang, group.StudyGroupID+"", group.tutorid+"", mdl_teacher.id+"", test_with_bad_question_count
       ]);
     }
 

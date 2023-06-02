@@ -32,12 +32,12 @@ function get_year_term() {
 
 // возможно было бы неплохо эти данные получить из аргументов
 const changing_data = {
-  vsk1: "2023.04.11 23:55:00",
+  //vsk1: "2023.04.11 23:55:00",
   //vsk2: "2023.01.10 23:55:00",
-  //exam: "2023.01.11 23:55:00",
+  exam: "2023.06.02 23:55:00",
 };
 
-const user_id = 3668;
+const user_id = 3006;
 
 (async () => {
   const pool = await mysql.createPool(connection_config);
