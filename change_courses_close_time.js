@@ -32,18 +32,19 @@ function get_year_term() {
 
 // возможно было бы неплохо эти данные получить из аргументов
 const changing_data = {
-  //vsk1: "2023.04.11 23:55:00",
-  //vsk2: "2023.01.10 23:55:00",
-  exam: "2023.06.02 23:55:00",
+  vsk1: "2023.06.08 23:55:00",
+  vsk2: "2023.06.08 23:55:00",
+  exam: "2023.06.09 23:55:00",
 };
 
-const user_id = 3006;
+const user_id = 3556;
 
 (async () => {
   const pool = await mysql.createPool(connection_config);
   const plt_conn = await mysql.createConnection(plt_connection_config);
 
-  const { year, term } = get_year_term();
+  let { year, term } = get_year_term();
+  term = 1;
 
   // сначала нужно понять кто перед нами: препод или студент и получить с него список курсов, необязательно
   // затем в курсах нужно найти все тесты по типу
@@ -56,6 +57,8 @@ const user_id = 3006;
   const groups = await plt.get_study_groups_data_by_student_id(plt_conn, plt_student_id, year, term);
   for (const group of groups) {
     const course = await common.get_course_by_plt_data(pool, group.tutorid, group.SubjectID, group.studyForm, group.language);
+    if (!course) continue;
+    
     for (const [ qtype, new_date ] of Object.entries(changing_data)) {
       const quizes = await common.get_raw_quizes(pool, course.id, qtype); // получаем список тестов по типу
       const new_time = common.make_unix_timestamp(new_date);

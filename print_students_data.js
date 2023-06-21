@@ -68,11 +68,6 @@ function make_current_day_str() {
 //   30: "ДОТ колледж 2г",
 // };
 
-let xlsx_data = [
-  [ "id курса", "id теста", "Дисциплина", "Курс", "Студент", "Время начала", "Время конца", "Поменять?" ],
-
-];
-
 
 function add_zero(num) {
   return num < 10 ? "0"+num : ""+num;
@@ -89,63 +84,75 @@ function to_string(date) {
   return `${year}-${month}-${day} ${hour}:${min}:${sec}`;
 }
 
-const test_type = process.argv[2];
-if (test_type !== "vsk1" && test_type !== "vsk2" && test_type !== "exam") {
-  console.log(`Could not parse test type ${test_type}`);
-  return;
-}
+// const test_type = process.argv[2];
+// if (test_type !== "vsk1" && test_type !== "vsk2" && test_type !== "exam") {
+//   console.log(`Could not parse test type ${test_type}`);
+//   return;
+// }
 
 (async () => {
   const mdl_pool = mysql.createPool(mdl_connection_config);
   const plt_conn = await mysql.createConnection(plt_connection_config);
 
   const { year, term } = get_year_term();
+  // 0 - летник, 1 - первый, 2 - второй
+  for (let i = 0; i < 3; ++i) {
+    const term1 = i;
+    let xlsx_data = [
+      [ "id студента", "id курса", "id теста", "Студент", "Дисциплина", "Курс", "Тип теста", "Время начала", "Время конца", "Поменять?", "Очистить тест?" ],
 
-  const study_groups = await plt_common.get_study_groups_by_year(plt_conn, year, term);
-  console.log(`Found ${study_groups.length} study groups`);
-  for (const group of study_groups) {
-    if (group.tutorid === 0) continue;
-    const course_idnumber = `${group.tutorid}-${group.SubjectID}-${group.studyForm}-${group.language}`;
-    const course = await mdl_common.find_course_with_idnumber(mdl_pool, course_idnumber);
-    if (!course) {
-      console.log(`Could not find course with idnumber '${course_idnumber}'`);
-      continue;
+    ];
+
+    const study_groups = await plt_common.get_study_groups_by_year(plt_conn, year, term1);
+    console.log(`Found ${study_groups.length} study groups`);
+    for (const group of study_groups) {
+      if (group.tutorid === 0) continue;
+      const course_idnumber = `${group.tutorid}-${group.SubjectID}-${group.studyForm}-${group.language}`;
+      const course = await mdl_common.find_course_with_idnumber(mdl_pool, course_idnumber);
+      if (!course) {
+        console.log(`Could not find course with idnumber '${course_idnumber}'`);
+        continue;
+      }
+
+      const students = await plt_common.get_students_by_group_id(plt_conn, group.StudyGroupID);
+
+      let found_test = undefined;
+      const tests = await mdl_common.get_course_tests(mdl_pool, course.id);
+      for (const test of tests) {
+        if (typeof test.plt_testtype !== "string") continue;
+        if (test.plt_testtype !== "vsk1" && test.plt_testtype !== "vsk2" && test.plt_testtype !== "exam") continue;
+        //if (test.plt_testtype !== test_type) continue;
+        found_test = test;
+        //break;
+      
+
+        for (const student of students) {
+          const name = `${student.lastname} ${student.firstname} ${student.patronymic}`;
+          const test_id = found_test ? found_test.id+"" : "Не найден";
+          const start_time = found_test ? "t"+to_string(new Date(found_test.timeopen * 1000)) : "";
+          const end_time = found_test ? "t"+to_string(new Date(found_test.timeclose * 1000)) : "";
+
+          xlsx_data.push([
+            "t"+student.StudentID, course.id+"", test_id+"", name, course.fullname, student.CourseNumber, test.plt_testtype, start_time, end_time, "", ""
+          ]);
+        }
+      }
     }
 
-    const students = await plt_common.get_students_by_group_id(plt_conn, group.StudyGroupID);
+    const date_str = make_current_day_str();
 
-    let found_test = undefined;
-    const tests = await mdl_common.get_course_tests(mdl_pool, course.id);
-    for (const test of tests) {
-      if (typeof test.plt_testtype !== "string") continue;
-      if (test.plt_testtype !== test_type) continue;
-      found_test = test;
-      break;
-    }
-
-    for (const student of students) {
-      const name = `${student.lastname} ${student.firstname} ${student.patronymic}`;
-      const test_id = found_test ? found_test.id+"" : "Не найден";
-      const start_time = found_test ? "t"+to_string(new Date(found_test.timeopen * 1000)) : "";
-      const end_time = found_test ? "t"+to_string(new Date(found_test.timeclose * 1000)) : "";
-
-      xlsx_data.push([
-        course.id+"", test_id, course.fullname, student.CourseNumber, name, start_time, end_time, ""
-      ]);
+    {
+      const buffer = xlsx.build([{name: 'Лист1', data: xlsx_data}]);
+      console.log(`Writing ${xlsx_data.length} rows`);
+      fs.writeFile(`prolongation_term${term1}_${date_str}.xlsx`, buffer, err => {
+        if (err) { console.error(err); return; }
+        console.log(`Success computing`);
+      });
     }
   }
+
+  
 
   await mdl_pool.end();
   await plt_conn.end();
-
-  const date_str = make_current_day_str();
-
-  {
-    const buffer = xlsx.build([{name: 'Лист1', data: xlsx_data}]);
-    console.log(`Writing ${xlsx_data.length} rows`);
-    fs.writeFile(`prolongation_${test_type}_${date_str}.xlsx`, buffer, err => {
-      if (err) { console.error(err); return; }
-      console.log(`Success computing`);
-    });
-  }
 })();

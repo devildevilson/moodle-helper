@@ -537,6 +537,12 @@ async function get_teacher_by_plt_id(pool, plt_id) {
   return res.length !== 0 ? res[0] : undefined;
 }
 
+async function get_student_by_plt_id(pool, plt_id) {
+  const GET_MDL_TEACHERS = `SELECT * FROM mdl_user WHERE idnumber = 's${plt_id}';`;
+  const [ res, _ ] = await pool.query(GET_MDL_TEACHERS);
+  return res.length !== 0 ? res[0] : undefined;
+}
+
 // user_id может быть или студентом или преподом
 async function get_courses(pool, user_id) {
   const query_str = `
@@ -811,6 +817,13 @@ async function update_quiz_time(pool, quiz_id, time_open, time_close) {
   console.log(`SQL: UPDATE mdl_quiz: SET timeopen = ${time_open}, timeclose = ${time_close} WHERE id = ${quiz_id}`);
 }
 
+async function remove_attempts(pool, quiz_id, user_id) {
+  const query_str = `DELETE FROM mdl_quiz_attempts WHERE userid = ${user_id} AND quiz = ${quiz_id};`;
+  await pool.query(query_str);
+
+  console.log(`SQL: DELETE mdl_quiz_attempts: WHERE userid = ${user_id}, quiz = ${quiz_id}`);
+}
+
 async function get_user_idnumber(pool, user_id) {
   const query_str = `SELECT idnumber FROM mdl_user WHERE id = ${user_id};`;
   const [ res, _ ] = await pool.query(query_str);
@@ -998,6 +1011,7 @@ module.exports = {
   get_user_by_name,
   get_teachers,
   get_teacher_by_plt_id,
+  get_student_by_plt_id,
   get_courses,
   get_course_context,
   get_context_blocks,
@@ -1022,5 +1036,6 @@ module.exports = {
   set_test_questions,
   get_student_by_name,
   suspend_user,
+  remove_attempts,
 
 };
