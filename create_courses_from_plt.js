@@ -121,7 +121,7 @@ function get_year_term() {
       const course_idnumber = `${group.tutorid}-${group.SubjectID}-${group.studyForm}-${group.language}`;
       const teacher = await mdl_common.get_teacher_by_plt_id(mdl_pool, group.tutorid);
       if (!teacher) continue;
-      if (teacher.id !== 1125) continue;
+      if (teacher.id !== 2491) continue;
 
       console.log(`teacher: ${teacher.firstname} ${teacher.lastname} ${teacher.idnumber} ${teacher.id}`);
 
